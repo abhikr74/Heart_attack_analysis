@@ -1,0 +1,794 @@
+---
+title: "Heart Failure Analysis"
+author: "Abhishek Kumar"
+date: "19/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setting working Directory
+
+```{r}
+setwd("/home/abhishek/Desktop/R assignment/Project")
+```
+
+# Installing packages
+
+```{r message=FALSE}
+install.packages("tidyverse") # This package includes packages like ggplot2(for creating graphs), dplyr(data manipulation) etc.
+install.packages("scales") # Graphical scales map data to aesthetics, and provide methods for automatically determining breaks and labels for axes and legends.
+install.packages("egg") # Miscellaneous functions to help customize 'ggplot2' objects.
+install.packages("plotly")
+install.packages("heatmaply")
+install.packages("ggcorrplot")
+install.packages("mlr") # This package includes all of the ML algorithms which we use frequently. 
+install.packages("FSelector")
+install.packages("rJava")
+
+```
+
+
+# Loading packages
+
+```{r message=FALSE}
+library(tidyverse) # metapackage of all tidyverse packages
+library(scales) # axis formatting
+library(egg) # ggarragne
+library(ggcorrplot)
+library(plotly)
+library(heatmaply)
+library(corrplot)
+library(car)
+library(GGally)
+library(mlr) # package to perform machine learning tasks
+library(FSelector)
+```
+
+
+
+# Objective
+
+Objective of this project is to study the dataset of patients with heart attack events, and the various parameter levels during an event of a heart attack and the consequences i.e whether the patient survived the attack or died. Figure out the factors which can be used to predict the chance of survival in a patient during the heart attack through exploratory data analysis. Develop a model based on features selected to predict the outcome of a heart  attack and check the accuracy.
+
+# Loading the data set and studying the feature of the dataset
+
+The data set contains the following features about different patients.
+
+1. anaemia: Anemia is a blood condition in which the levels of hemoglobin (an essential protein that carries oxygen to your tissues and organs) are lower than normal.
+
+2. creatinine_phosphokinase: When the total CPK level is very high, it most often means there has been injury or stress to muscle tissue, the heart, or the brain.
+
+3. diabetes: If the patient was diabetic or not(1 indicates patient was diabetic and o means not diabetic). Diabetes is characterized by high blood sugar (glucose) levels.
+
+4. ejection_fraction: The percentage of blood amount leaving heart at each contraction.
+
+5. high_blood_pressure: If the patient has high bp condition(1 indicates patient has High BP and 0 means he doenst have). High blood pressure is a common condition in which the long-term force of the blood against your artery walls is high enough that it may eventually cause health problems, such as heart disease.
+
+6. platelets: platelets level in blood. Platelets are tiny blood cells that help your body form clots to stop bleeding.
+
+7. serum_creatinine: serum creatinine level in the blood.
+
+8. serum_sodium: serum sodium level in the blood.
+
+9. sex: patients are male(1) or female(0)
+
+10. smoking: Smoking habits in patients, 1 indicates patient smokes and 0 means doesn't smoke.
+
+11. time: follow up period in days for each patients.
+
+12. DEATH_EVENT: Whether patient survived or not during an event of heart attack.
+
+13. Age: Age of patient
+
+Categorical variables in the dataset are:
+
+1. Sex - Gender of patient Male = 1, Female =0
+2. Diabetes - 0 = No, 1 = Yes
+3. Anaemia - 0 = No, 1 = Yes
+4. High blood pressure - 0 = No, 1 = Yes
+5. Smoking - 0 = No, 1 = Yes
+6. Death - 0 = No, 1 = Yes
+
+```{r}
+heart = read_csv("/home/abhishek/Desktop/R assignment/Project/heart_failure_clinical_records_dataset.csv")
+head(heart, n = 20)
+str(heart)
+```
+
+# Correlation matrix and plot of predictor variables
+
+As seen from the correlation values and plot 'age', 'ejection_fraction', 'serum_creatinine', 'serum_sodium', 'time' are the explanatory variables which seem to provide information about the heart failure.
+In the plot X in signifies no significant coefficient.
+
+```{r correlation_matrix_plot}
+
+corr = (cor(heart)) # Computed correlation matrix
+pv_mat = cor_pmat(heart) # Computed a matrix of correlation p-values
+corr.plot = ggcorrplot(
+  corr, hc.order = TRUE, type = "lower", outline.col = "white",
+  ggtheme = ggplot2::theme_gray,
+  p.mat = pv_mat
+  )
+corr.plot
+
+#cor_mat1 = cor(heart) # correlation matrix plot
+#corrplot.mixed(cor_mat1)
+```
+
+
+# Converting categorical variables into factor type.
+
+```{r}
+var_cat = c("DEATH_EVENT", "anaemia", "diabetes", "high_blood_pressure", "sex", "smoking")
+heart[var_cat] = lapply(heart[var_cat], factor)
+str(heart)
+```
+
+
+```{r}
+
+# No major non-linear patterns observed for the numerical variables.
+ggpairs(heart[,c('age', 'ejection_fraction', 'serum_creatinine', 'serum_sodium', 'time',"creatinine_phosphokinase",'DEATH_EVENT')])
+```
+
+
+
+# Defined function to assist in Exploratory data analysis
+
+The main purpose of these plotting function was to use it for exploratory data analysis.
+
+1. plot_numerical_response()
+
+  Description: This function is used to plot the categorical variable of the dataframe using ggplot. It take in the below mentioned inputs and histogram and violin plots of the numerical variable received as an argument. Its main purpose is to check the distribution of the numerical variable passed to the function and analyze the death events caused due to heart attack that a particular variable. It plots count vs input variable histogram and also shows the distribution of variables in for survivals and death through violin plot.
+  
+  Inputs:
+  
+  df - Dataframe on which we need to work.
+  xin - Darget variable for which plot needs to be created
+  title_var - Plots title name
+  ... - It is used to set parameters of the hist plot.
+  
+  Returns a ggplot objects arranged in 2 rows and 1 column form.
+  
+2. plot_categorical_response()
+
+  Description: This function is used to plot the categorical variable of the dataframe. It plots the basrchart for the categorical variable passed and for both deaths and survivals, it give counts and proportion of both events for the categorical variable passed in form of plots
+  
+  Inputs:
+  
+  df - Dataframe on which we need to work.
+  xin - target variable for which plot needs to be created
+  title_var - Plots title name
+  
+  Returns a ggplot objects arranged in 1 rows and 2 column form.
+
+  
+  
+3. summary_stats()
+
+ Description: This function is used to calculate basic statistical measure related to a numerical variables with respect to different categories of another variable of the heart dataset used in this project for analysis.
+ 
+ Inputs:
+ 
+ var : Numerical variable for which mean, median, Q1, Q2, IQR has to be calculated.
+ group : categorical variable w.rt to which summary stats for numerical variable has to be calculated.
+ 
+ Returns a dataframe with mean, median etc for of the numerical variable(var)) for each group of the categorical variable(group).
+ 
+ 
+ 
+```{r }
+
+# function summary_predictors() to calculate summary stats for numerical variables
+# This function takes in input a variable and the factor variable on which summary stats has to be calculated for different groups.
+# return mean, median, Quantile 1 and 3, Inter-Quartile range.
+
+summary_stats = function(var, group){
+   
+   #summary_expl_variable = data.frame()
+   mean = tapply(var, group, mean)
+   median = tapply(var, group, FUN=median)
+   Q1 = tapply(var, group, FUN=quantile, 0.25)
+   Q3 = tapply(var, group, FUN=quantile, 0.75)
+   IQR = Q3 - Q1
+   summary_expl_variable = data.frame(mean, median, Q1, Q3, IQR)
+   return(summary_expl_variable)
+   
+ } #summary
+
+
+# plot_numerical_response()
+# This functions takes in input a dataframe and a numerical column.
+# Plots using ggplot for analysis of numerical variable with the response variable i.e DEATH_EVENT
+# substitute() returns a call object and deparse() turns a call object into a string.
+
+plot_numerical_response = function(df, xin, title_var, ...){
+  
+ 
+ plot1 = ggplot(df , aes(xin, fill = DEATH_EVENT))+
+ geom_histogram(...)+
+ labs(title = paste(title_var," during heart attack and consequences"),y = "Count", x = title_var)+
+ theme(legend.position = "top")+
+ scale_fill_discrete(name = "Deaths due to heart attack", labels = c("No", "Yes"))+
+ theme_dark()
+
+ plot2 = ggplot(df, aes(DEATH_EVENT, xin))+
+ geom_violin(alpha = 0.5, aes(color = DEATH_EVENT))+
+ geom_jitter(alpha = 0.3, aes(color = DEATH_EVENT))+
+ labs(title = paste(title_var," during heart attack and   consequences"), y = title_var,
+      x = "Deaths due to heart attack")+ # To give labels to the plot
+ scale_x_discrete(labels = c("No", "Yes"))+ # Specified the names of the levels of x axis ticks.
+ coord_flip()+ # Flipped the axes
+ theme_light()
+  
+invisible(ggarrange(plot1,plot2, nrow = 2)) # To get the plots in single window having 1 colunm and 2 rows
+
+} #plot_num
+
+
+# plot_categorical_response()
+# This functions takes in input a dataframe and a categorical data.
+# Plots using ggplot for analysis of two categorical variables i.e response variable (DEATH_EVENT) with another categorical variable.
+# substitute() returns a call object and deparse() turns a call object into a string.
+
+plot_categorical_response = function(df, xin, title_var){
+  
+ plot1 = ggplot(df,aes(xin, fill = DEATH_EVENT))+
+ geom_bar()+
+ labs(title = paste("Affects of" ,title_var, "on \nHeart Attack and consequences"), y = "Counts", x = title_var)+
+ theme(legend.position = "top")+
+ scale_fill_discrete(name = "Death due to heart attack", labels = c("No","Yes"))+
+ scale_x_discrete(labels = c("No","Yes"))+
+ theme_classic()
+
+ plot2 = ggplot(df,aes(xin, fill = DEATH_EVENT))+
+ geom_bar(position = "fill")+
+ labs(title = paste("Affects of" , title_var, "on \nHeart Attack and consequences"), y = "Proportion", x = title_var)+
+ theme(legend.position = "top")+
+ scale_fill_discrete(name = "Death due to heart attack", labels = c("No","Yes"))+
+ scale_x_discrete(labels = c("No","Yes"))+
+ theme_classic()
+
+invisible(ggarrange(plot1,plot2, ncol = 2)) # To get the plots in a single window having two columns and one rows
+  
+} #plot_cat
+
+
+```
+
+
+
+4. summary_and_plots()
+
+ Description : Purpose of this function is to create plots and summary stats for particular variable and store it in a summary_stats_plots class object called summary_expl_variable_and_plot. This object stores the mean, median, Q1, Q3, IQR and plots of the by checking whether its categorical or numerical variable.
+ 
+ Inputs:
+  df : dataframe on which analysis is done.
+  xin : Particular column of the dataframe for which we need the plots and stat summary
+  ... : Any additional parameters which need to be passed to the plotting function like setting binwidth in hist plot in numerical plot function
+  
+  Returns a list of class type summary_stats_plots which contains basic information like mean, median etc and plots.
+ 
+```{r s3 class}
+
+# Writing s3 class
+
+summary_and_plots = function(df, xin, title_var, group, ...){
+  
+  # create a list of class summary_stats_plots that will conatin the output of the function
+  summary_expl_variable_and_plot = list() 
+  class(summary_expl_variable_and_plot) = "summary_stats_plots" # setting summary_expl_variable as class summary_Stats
+  
+  
+  
+  if(is.factor(xin) == FALSE){  # Check if variable is factor or numerical
+  
+   # Storing data in the summary_expl_variable_and_plot summary_and_plots()
+    
+   summary_expl_variable_and_plot$plot = plot_numerical_response(df, xin, title_var, ...)
+   summary_expl_variable_and_plot$mean = tapply(xin, group, mean)
+   summary_expl_variable_and_plot$median = tapply(xin, group, FUN=median)
+   summary_expl_variable_and_plot$Q1 = tapply(xin, group, FUN=quantile, 0.25)
+   summary_expl_variable_and_plot$Q3 = tapply(xin, group, FUN=quantile, 0.75)
+   summary_expl_variable_and_plot$IQR = summary_expl_variable_and_plot$Q1 - summary_expl_variable_and_plot$Q3
+   invisible(summary_expl_variable_and_plot)
+    
+  }
+  
+  else{
+    
+    summary_expl_variable_and_plot$plot = plot_categorical_response(df, xin, title_var)
+    invisible(summary_expl_variable_and_plot)
+  }
+   
+   
+ } #summary_predictors3
+
+
+# Print method for class type summary_stats_plots
+
+print.summary_stats_plots <- function(variable){ # variable contains the output of the summary_and_plots function
+  
+  # check if length of the object received from the summary_and_plots plot function to verify if its for categorical or   numerical variable.
+  if(length(variable) > 1){
+    
+    cat("Average Survival: ",variable$mean["0"], "|| Average Death: ", variable$mean["1"], "\n")
+    cat("50% Patients who survived had levels below: ",variable$median["0"], "|| 50% Patients who died had levels below: : ", variable$median["1"],"\n")
+    print(variable$plot)
+     
+  } #if
+  
+  else print(variable$plot)
+  
+  
+} #print.summary_stats
+
+```
+
+
+# Plotting relationship between age of the subject during heart attack and whether it resulted in death or not.
+
+From the box plots I can infer that there is higher number of deaths at higher age, this can be seen from the average age of patient (65.21) during death due to heart attack is higher than those who didn't die during heart attack (58.76).
+So, Age can be a crucial factor to determine patients survival chances during the heart attack.
+
+```{r age~DEATH_EVENT}
+
+age = summary_and_plots(df = heart, xin = heart$age, title_var = "Age", group = heart$DEATH_EVENT, binwidth = 1)
+age
+```
+
+
+
+# Analyzing ejection_fraction during heart during and Death
+
+Average percentage of blood leaving the heart in patients who died during an heart attack is 33.46875 and Average percentage of blood leaving the heart in patients who survived during an heart attack is 40.26601. Median also suggest that 50% of patients who died during heart attack had ejection_Fraction of 30 or lower, and the one who survived had 38 or lower for 505 of the patients.
+
+From the hist plot we can see that higher deaths are for people who had lower percentage of blood leaving heart during heart attack.
+Same is suggested by violin plot as we have more data points in the region of low ejection_fraction levels for the people who died than at the higher values of ejection fraction.
+
+So on average ejection fraction is low in people who died during heart attack as seen from the mean values and it can be an useful indicator to predict whether a person will survive or not during a heart attack.
+
+
+```{r ejection_fraction}
+
+EF = summary_and_plots(df = heart, xin = heart$ejection_fraction, title_var = "Ejection Fraction", group = heart$DEATH_EVENT, binwidth = 5)
+EF
+
+
+```
+
+
+# Analyzing serum_creatinine level during heart during and Death
+
+Average level of serum creatinine in patients who died during heart attack was around 1.83 which is higher than the average in patients who survived the heart attack i.e 1.18.
+
+In general patients with higher serum creatinine has higher deaths during heart attack, so this can be an useful indicator to predict the deaths from heart attack.
+
+The data looks to be left skewed and needs to be handled before model developmet.
+
+```{r serum_ccreatine}
+
+SC = summary_and_plots(df = heart, xin = heart$serum_creatinine, title_var = "Serum Creatinine", group = heart$DEATH_EVENT)
+SC
+
+```
+
+# Analyzing Creatinine Phosphokinase level during heart during and Death
+
+Form the summary stats and plots we can see that there is not much difference in the Creatinine Phosphokinase levels  during the heart attack between the patients who died and survived. So it can be very useful parameter to predict the chance of death during heart attack. The is seems to be right skewed and needs to be handled by standardization.
+
+```{r Creatinine Phosphokinase}
+
+CP = summary_and_plots(df = heart, xin = heart$creatinine_phosphokinase, title_var = "creatinine phosphokinase", group = heart$DEATH_EVENT)
+CP
+
+
+```
+
+# Analyzing Platelet Count in patients during heart attack.
+
+From the summary stats it can be seen that platelet counts are marginally higher in patients who survive (266657.5) during heart attack than the one's who died(256381.0). Also seen from the plots that patients distribution is quite similar for both who survived and died across the range of platelet counts.
+
+So, it looks like platelet counts do doesn't provide enough information to predict the death caused due to heart attacks.
+
+```{r platelet}
+
+plts = summary_and_plots(df = heart, xin = heart$platelets, title_var = "platelet", group = heart$DEATH_EVENT)
+plts
+
+```
+
+
+# Analyzing effect of Serum Sodium on deaths due to heart attack.
+
+
+From the summary stats it can be seen that Serum Sodium levels approximately equal in patients who survive (137.2167) during heart attack than the one's who died(135.3750). Also seen from the plots that patients distribution is quite similar for both who survived and died across the range of Serum Sodium levels.
+So, based on the observations it can be told Serum Sodium is providing little information to predict the death of a patient during heart attack. 
+
+```{r}
+
+ss = summary_and_plots(df = heart, xin = heart$serum_sodium, title_var = "serum sodium", group = heart$DEATH_EVENT, binwidth = 1)
+ss
+
+```
+
+# Analyzing effect of time on deaths due to heart attack.
+
+Follow up period in days for each patient, If see the average follow up period for patients who survived the heart attack is 70 days than the one who died (158 days) during an event of heart attach, suggesting that patients visiting for regular checkups to consultants had higher chances of survival. This can provide useful information in preding the survival chances of a patient during an heart attack.
+
+
+```{r}
+
+time= summary_and_plots(df = heart, xin = heart$time, title_var = "time", group = heart$DEATH_EVENT, binwidth = 8)
+time
+
+```
+
+
+
+# Analyzing categorical variables
+
+# Analyzing patients smoking status on death due to heart attack.
+
+There isn't much difference in number of patients who died due to heart attack and about their smoking habits. So this cannot be good indicator to predict the death of patients due to heart attack.
+
+```{r}
+
+summary_and_plots(df = heart, xin = heart$smoking, title_var = "Smoking", group = heart$DEATH_EVENT)
+
+```
+
+
+# Analyzing patients Blood pressure status on death due to heart attack.
+
+As seen from the barplot there is higher proportion of people who had condition of High BP and died during the heart attack. So High BP can be a good indicator to predict the death due to heart attack.
+
+```{r}
+
+summary_and_plots(df = heart, xin = heart$high_blood_pressure, title_var = "High BP", group = heart$DEATH_EVENT)
+
+```
+
+
+ 
+# Analyzing patients with and without Anaemia on death due to heart attack.
+
+
+"Fill" argument will color each bar with different color for area proportion to subject who died due to heart attack and one who survived for patients with and without Anaemia.
+
+From the plots I can observe that number of subjects who died during heart attack is quite similar in both categories of people, i.e group of people with and without Anaemia.
+
+
+```{r Anaemia~DEATH_EVENT}
+
+summary_and_plots(df = heart, xin = heart$anaemia, title_var = "Anaemia", group = heart$DEATH_EVENT)
+
+```
+
+# Analyzing patients diabetic status on death due to heart attack.
+
+Diabetes has no significant impact on death due to heart attack as seen from the the graphs that the proportion of people who had diabetic conditions and died of heart attack is same to patiets who didnt had diabetes. So this variable can be ignored from keeping in model development.
+
+```{r}
+
+summary_and_plots(df = heart, xin = heart$diabetes, title_var = "diabetes", group = heart$DEATH_EVENT)
+
+```
+
+
+
+# Analyzing patients gender impact on death due to heart attack.
+
+From the plots I can see that there is not much difference in the deaths of patients due to heart attatck in males and females, approximately 27% of total males and total females died during an heart attack.
+So from this I can say that gender of patient doest affect the chance of survival during a heart attack.
+
+```{r}
+
+summary_and_plots(df = heart, xin = heart$sex, title_var = "Sex", group = heart$DEATH_EVENT)
+
+```
+
+# Based on the exploratory data analysis, I can say that age + ejection_fraction + serum_creatinine + high_blood_pressure and time can be good predictors for the model and can be used to predict the death events caused due to heart attack.
+
+1. Creating training and test data for regression model
+
+I have split the data into a training data set and test data set according to a random 80:20 split of the heart dataframe having 299 observations, my training dataset contains 224 observations and the test data have 75 observations.
+
+Based on the fitted logistic regression model, I can see that accuracy if the model to predict the heart attack based on these features was around 80.
+
+```{r logistic regression }
+
+cat = c("DEATH_EVENT", "anaemia", "diabetes", "high_blood_pressure", "sex", "smoking")
+num = c('age', 'ejection_fraction',"platelets",'serum_creatinine', 'serum_sodium', 'time',"creatinine_phosphokinase")
+
+# Standardizing numerical datacolumns in the dataset to remove the skewness in distribution of data in few columns as observed during EDA.
+
+xn = heart[,num]
+mean_xn = apply(xn,2,mean) # calculating column mean
+sd_xn = apply(xn, 2, sd) # calculating column standard deviation
+xn_central = sweep(xn, 2, mean_xn) # subtracting column mean from each value in a particular column to center the data
+xn_std = sweep(xn_central, 2, sd_xn,"/") # dividing each observation in a particular column by it standard deviation
+xn_std[cat] = heart[cat] # adding categorical variables back in the dataframe.
+
+# Creating training and test data sets to fit and test my model.
+
+train_size = 224
+set.seed(100)
+train_select = sample(1:length(heart$DEATH_EVENT))
+
+heart_train = xn_std[train_select[1:train_size], ]
+heart_test = xn_std[train_select[-(1:train_size)], ]
+
+# Fitting logistic regression model on train dataset
+ 
+glm_heart_model = glm(formula = DEATH_EVENT ~ age + ejection_fraction + serum_creatinine+high_blood_pressure + time, data = heart_train, family = "binomial")
+summary(glm_heart_model)
+
+# Prediction of DEATH_EVENTS on test data
+pred = predict(glm_heart_model, heart_test, type="response")
+
+# Function to calculate the accuracy of the model
+# This function takes in input the dataset and the model on which data has been fitted
+# Calculates the number of predictions which actually matched with the true values and then calculated the percentage of actual true's across all predictions.
+# Returns accuracy of the model being tested.
+
+accuracy_fn <- function(data,fit){
+  
+  predictions = round(predict(fit, data, type = "response"),0) # Rounding predicted values to zero decimal points so as to get the predictions in terms of 0 and 1.
+  
+  true_values = data$DEATH_EVENT
+  predicted_true_values = as.numeric(table(true_values == predictions)[["TRUE"]]) # Number of predictions which actually matched with the true values.
+  
+  print(paste(c("Number of predicted values which were true: ", predicted_true_values)))
+  print(paste(c("Total number of predictions made: ", length(true_values))))
+  
+  accuracy = 100*(predicted_true_values / length(true_values)) # true predictions/total predictions * 100
+  return(accuracy)
+  
+} #fn
+
+accuracy_fn(heart_test, glm_heart_model)
+
+```
+
+Optimizing the model by removal of predictor variables which are not providing enough information to the model to predict.
+
+As seen from previous model summary time high_blood_pressure was not significant in the model as suggested by the p-value which was higher than the 0.05.
+
+avPlots: I used the plot to examine the effects of particular predictor variable on our response variable while holding all other predictor variables constant.
+As seen from the plot where all other variable was already present in the model and high_blood_pressure was added in the model, it didn't had significant impact on the DEATH_EVENT as slope of the fitted line represented by blue line is horizontal.
+
+Component plus-residual plots can be used to examine if the relationship between the response and the predictor variable were linear or not. All variables taken in model seems to have linear relationship with response, except for the high_blood_pressure whose box plot shows similar mean and variation with respect to DEATH_EVENT.
+
+Same can be observed from the ANOVA table, So high_blood_pressure can be removed from the model.
+
+After removing blood pressure from the model accuracy of the model is increased to 81.33.
+
+```{r}
+
+#summary(glm_heart_model)
+avPlots(glm_heart_model) # Added variable plot.
+crPlots(glm_heart_model) # Component and residual plot.
+
+
+glm_heart_model1 = glm(formula = DEATH_EVENT ~ age + ejection_fraction + serum_creatinine + time, data = heart_train, family = "binomial")
+summary(glm_heart_model1)
+accuracy_fn(heart_test, glm_heart_model1)
+```
+
+# mlr Package in R
+
+
+The three main stages in building a machine learning model with mlr is stated below:
+
+1. Create a task : Loading data in the package, the task consists of data and what we want to do with it.
+
+ - The task definition consists of the data containing the predictor variables for classification and regression problems, and a    target variable we want to predict. makeClassifTask(), makeRegrTask(), etc can be used to create task based on problem type.
+ 
+2. Make a Learner : Selecting an algorithm which learns from the task i.e data.
+
+ - A learner definition consists of the class of algorithm and the name of the individual algorithm we want to use and any additional argument to control the algorithms behavior. makelearner() is used to make a learner.
+ 
+ 
+3. Train the model : At this stage, we pass the task to the learner and the learner generates a model that is used to make future predictions. This can be done using the train() function which takes the learner as the first model and the task as the 2nd argument.
+
+Some inportant features which I used:
+
+Missing Value Imputation:
+
+MLR package provides an easy way to impute missing value using multiple methods. impute() function doesn't require to specify variable names to impute, it will select variables based on their class. " $data " attribute of impute function will have the imputed data.
+
+Even there are algorithms which do not require us to impute missing values. we can just supply missing data to these algorithms and they will take care of missing values. Since I did not had missing values in the dataset, I did not use this feature but its seems to be very useful and would like to make use of this in my future projects.
+
+example: using impute() to impute missing values by mean and mode. 
+
+code:
+
+impute1 = impute(train, classes = list(factor = imputeMode(), integer = imputeMean()), dummy.classes = c("integer","factor"), dummy.type = "numeric")
+
+impute2 = impute(test, classes = list(factor = imputeMode(), integer = imputeMean()), dummy.classes = c("integer","factor"), dummy.type = "numeric")
+
+Normalizing data:
+
+I used normalizeFeatures() function of the mlr package to normalize the data. This function normalizes all the data in the package by default.
+
+Dropping features which are not required:
+
+I used dropFeatures() function to remove the variables which I do not require for model development.
+
+Syntax:
+
+ dropFeatures(task = trainTask,features = c("anaemia","creatinine_phosphokinase", "diabetes", "platelets", "serum_sodium", "sex", "smoking", "time"))
+
+We can get the important variable in the data by using mlr package using generateFilterValuesData(), giving insights abot which variables are providing useful informations about the response variable.
+
+ generateFilterValuesData(trainTask, method = c("information.gain","chi.squared"))
+
+predict() : predict passest the observations in amodel and outputs the predicted values. The first argument in the function is the model and 2nd is the data being used to predit the response variable.
+
+  knnPred = predict(knnModel, newdata = heart_test3)
+
+performance() : It compares these predicted values to the case's true values and outputs one or more performance metrics summarizing the similarity between the two.
+
+ mmce : Mean Misclassification Error, it is simply the proportion of cases classified as a class other than their true class.
+ acc :  Accuracy, It is the proportion of cases correctly classified by the model.
+ Sum of these two measures are equal to 1.
+ 
+ 
+Accuracy of the model with response variable as death and 'age', 'ejection_fraction', 'serum_creatinine', 'time' as the predictors, with logistic regression model was found to be around 80% i.e 80 percent of cases were correctly classified in groups of death and survivors.
+
+mmse of 20% of cases were incorrectly classified in predictions.
+
+```{r mlr}
+
+summarizeColumns(heart) # Getting a summary of all the variables
+
+# Creating training and testing datasets
+train_size1 = 224 # Size of train dataset
+set.seed(100) 
+train_select1 = sample(1:length(heart$DEATH_EVENT)) # Creating a list of indies which are randomly selected.
+
+# Splitting heart data into test and train datasets.
+heart_train1 = heart[train_select1[1:train_size1], ]
+heart_test1 = heart[train_select1[-(1:train_size1)], ]
+
+#creating a task i.e dataset on which learner will learn
+trainTask = makeClassifTask(data = heart_train1,target = "DEATH_EVENT", positive = "1") #Positive = 1 will keep positive class as 1.
+testTask = makeClassifTask(data = heart_test1, target = "DEATH_EVENT", positive = "1") #Positive = 1 will keep positive class as 1.
+str(getTaskData(trainTask)) # checking train task data
+str(getTaskData(testTask)) # checking test task data
+
+#normalizing  the variables so as to remove any skewness present in data as seen during EDA of variables in 1st part of this project.
+
+trainTask = normalizeFeatures(trainTask,method = "standardize")
+testTask = normalizeFeatures(testTask,method = "standardize")
+
+#important_feature = generateFilterValuesData(trainTask, method = c("information.gain","chi.squared"))
+#information.gain tries to find out variables which carries the maximum information and by which the target class is easier to predict.
+
+# Removing the variables which are not required for model development as per the analysis done earlier in part 1 "anaemia","creatinine_phosphokinase", "diabetes", "platelets", "serum_sodium", "sex", "smoking", "high_blood_pressure")
+
+trainTask = dropFeatures(task = trainTask,features = c("anaemia","creatinine_phosphokinase", "diabetes", "platelets", "serum_sodium", "sex", "smoking", "high_blood_pressure"))
+testTask = dropFeatures(task = testTask,features = c("anaemia","creatinine_phosphokinase", "diabetes", "platelets", "serum_sodium", "sex", "smoking", "high_blood_pressure"))
+
+
+#logistic regression
+logistic.learner = makeLearner("classif.logreg",predict.type = "response")
+
+#cross validation (cv) accuracy : It determines that our model does not suffer from high variance and generalizes well on unseen data.
+
+cv.logistic = crossval(learner = logistic.learner,task = trainTask,iters = 3,stratify = TRUE,measures = acc)
+cv.logistic$aggr # checking cv accuracy
+
+# To see, accuracy with respect to each fold.
+cv.logistic$measures.test
+
+# Now, I will train the model and check the prediction accuracy on test data.
+# training model
+
+fmodel = train(logistic.learner,trainTask)
+getLearnerModel(fmodel)
+
+# predict on test data
+
+fpmodel <- predict(fmodel, testTask)
+
+# Getting the accuracy, true positive, false positive and false negative.
+performance(fpmodel, measures=list(mmce, acc, tpr, fpr, fnr))
+
+
+```
+
+# K-Nearest Neighbors (kNN) suning mlr package
+
+-Implementing k-nearest neighbors (kNN) algorithm and going to classify potential deaths occurrences during an event of heart attack using mlr package, as stated earlier which has numbers of machine learning algorithms and greatly simplifies machine learning tasks.
+
+- KNN uses labeled data, so it is supervised learning algorithm.
+
+- It is mainly based on feature similarity. KNN checks how similar a data point is to its neighbor and classifies the data point into the class it is most similar to.
+
+- Trained the KNN model for different values of K and found out that model is giving best accuracy of 0.8533333% for k = 5.
+
+     response
+truth  0  1
+    0 46  4
+    1  7 18
+    
+- Out of all the test dataset observations it was able to correctly classify death events 18 times and missed 7 incorrectly guessed as no death. Similarly true survivals were classified 46 time and incorrectly classified as deaths 4 times.
+
+- Overall the KNN model at k = 7, classified death events correctly 64 times out of 75 times. So, I can say that model performed pretty well in captung the death events based on the parameters 'age', 'ejection_fraction', 'serum_creatinine', 'time'.
+
+I found mlr package quite interesting and would be exploring it further to understand and make better implementations of its features.
+
+
+```{r mlr knn}
+
+
+# Splitting heart data into test and train datasets.
+
+heart_train2 = heart[train_select1[1:train_size1], ] # train set 
+heart_test2 = heart[train_select1[-(1:train_size1)], ] # test set
+
+# keeping relevant items only for model, as seen from the EDA and just including these values - 'age', 'ejection_fraction', 'serum_creatinine','DEATH_EVENT', 'time'.
+
+heart_train3 = heart_train2[, c('age', 'ejection_fraction', 'serum_creatinine','DEATH_EVENT', 'time')] 
+heart_test3 = heart_test2[, c('age', 'ejection_fraction', 'serum_creatinine','DEATH_EVENT', 'time')] 
+
+# Defining the task
+DeathTask = makeClassifTask(data = heart_train3, target = "DEATH_EVENT", positive = "1")
+
+# Testing my KNN model for different k values and then choosing the one with best accuracy.
+
+for(k in c(2,5,7,10, 15,25)){
+  
+  # Defining a learner
+  knn = makeLearner("classif.knn", par.vals = list("k" = k))
+
+  #Training the knn model
+  knnModel = train(knn, DeathTask)
+  # Predict
+  knnPred = predict(knnModel, newdata = heart_test3)
+
+
+# cross validation :  K-fold CV. The data is randomly split into near equally sized folds. Each fold is used as the test set once, with the rest of the data used as the training set. The similarity of the predictions to the true values of the test set is used to evaluate model performance.
+
+ kFold = makeResampleDesc(method = "RepCV", folds = 10,reps =2, 
+                          stratify = TRUE)
+
+ kFoldCV = resample(learner = knn, task = DeathTask,
+                    resampling = kFold, measures = list(mmce, acc))
+ 
+ 
+ # A summary of the predict() and performance() functions of mlr. predict() passes observations into a model and outputs the predicted values. performance() compares these predicted values to the cases’ true values and outputs one or more performance metrics summarizing the similarity between the two.
+ print(paste("K value : ", k))
+ print(performance(knnPred, measures = list(acc)))
+ print(table(knnPred$data))
+ 
+}
+
+```
+
+# Conclusion
+
+Exploratory data analysis was performed on the heart dataset using plots and statistical measures like mean, median, Quartiles etc, it was observed from that 'age', 'ejection_fraction', 'serum_creatinine' and 'time' are good features which can be used to predict the outcome of a heart attack. These variables were then used to develop models to predict the results of death or survival in an event of heart attack. Logistic regression and KNN model were developed, based on the results from the regression models I can say that KNN classification model performed better than the simple logistic regression in predicting the death events correctly based on the predictor's 'age', 'ejection_fraction', 'serum_creatinine' and 'time' with accuracy of 85%. So we can monitor these parameter efficiently to improve the chances of survival of a patients in an event of heart attack in future.
+
+
+
+
+
+
+## References
+
+1. https://www.tidyverse.org/packages/
+2. https://cran.r-project.org/web/packages/scales/index.html
+3. https://cran.r-project.org/web/packages/egg/index.html
+4. https://cran.r-project.org/web/packages/egg/vignettes/Overview.html
+5. https://www.diabetes.ie/about-us/what-is-diabetes/
+6. https://www.mayoclinic.org/diseases-conditions/high-blood-pressure/symptoms-causes/syc-20373410
+7. https://bmcmedinformdecismak.biomedcentral.com/articles/10.1186/s12911-020-1023-5
+8. https://livebook.manning.com/book/machine-learning-for-mortals-mere-and-otherwise/chapter-3/7
+9. https://ggplot2.tidyverse.org/reference/
